@@ -173,7 +173,12 @@ loop:	SWAPINIT(long, a, es);
 /*		qsort(pn - r, r / es, es, cmp);*/
 }
 
+#ifndef BENCH_SMALL
 #define ARRAY_SIZE 50000000
+#else
+// aim for about 1000000 cycles
+#define ARRAY_SIZE 5710
+#endif
 
 int compare (const void *a, const void *b)
 {

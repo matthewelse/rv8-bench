@@ -396,7 +396,11 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#ifndef BENCH_SMALL
 #define LOOPS 10000000
+#else
+#define LOOPS 5000
+#endif
 
 char Version[] = "1.1-mc";
 

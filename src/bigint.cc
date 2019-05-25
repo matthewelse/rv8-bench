@@ -926,8 +926,14 @@ void Nat::from_string(const char *str, size_t len, size_t radix)
 
 int main(int argc, char const *argv[])
 {
+#ifndef BENCH_SMALL
 	int val = 23, power = 111121;
+    unsigned int expected = 2367549335;
+#else
+    int val = 5, power = 1110;
+    unsigned int expected = 1394389449;
+#endif
 	Nat result = Nat(val).pow(power);
-	printf("%d ^ %d has %d digits\n", val, power, result.to_string().size());
-	assert(result.limb_at(0) == 2367549335);
+	printf("%d ^ %d has %ld digits\n", val, power, result.to_string().size());
+	assert(result.limb_at(0) == expected);
 }

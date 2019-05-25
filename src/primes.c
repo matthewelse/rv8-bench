@@ -9,7 +9,11 @@
 
 int main()
 {
+#ifndef BENCH_SMALL
 	int limit = 33333333;
+#else
+    int limit = 23333;
+#endif
 	size_t primes_size = ((limit >> 6) + 1) * sizeof(uint64_t);
 	uint64_t *primes = (uint64_t*)malloc(primes_size);
 	int64_t p = 2, sqrt_limit = (int64_t)sqrt(limit);

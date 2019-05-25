@@ -8440,7 +8440,11 @@ mz_bool mz_zip_end(mz_zip_archive *pZip)
 
 #endif /*#ifndef MINIZ_NO_ARCHIVE_APIS*/
 
+#ifndef BENCH_SMALL
 static const size_t DATA_SIZE = 8 * 1024 * 1024;
+#else
+static const size_t DATA_SIZE = 6 * 256;
+#endif
 
 int main()
 {

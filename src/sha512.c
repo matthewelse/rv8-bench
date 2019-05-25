@@ -188,7 +188,15 @@ int main()
 
     memset(buf, 0, SHA512_OUTPUT_BYTES);
     sha512_init(&sha512);
-    for (size_t i = 0; i < 1000000; i++) {
+
+#ifndef BENCH_SMALL
+    size_t iterations = 1000000;
+#else
+    // aim for about 1000000 cycles
+    size_t iterations = 239;
+#endif
+
+    for (size_t i = 0; i < iterations; i++) {
         sha512_update(&sha512, buf, SHA512_OUTPUT_BYTES);
     }
     sha512_final(&sha512, output);
