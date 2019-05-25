@@ -1,147 +1,90 @@
 #
-# rv8-bench
+# rv8-bench: Macro fusion analysis
 #
 
-CFLAGS = -fPIE -g
-LDFLAGS = -static
+GNUPREFIX=riscv64-unknown-linux-gnu
+PREFIX=/home/melse/Documents/build_clang/llvm/build/bin/
+SPIKEPREFIX=/home/melse/Dropbox/Cambridge/iii/project/riscv-isa-sim/build/
 
-RV32 = riscv32-linux-musl-
-RV64 = riscv64-linux-musl-
-I386 = i386-linux-musl-
-X86_64 = x86_64-linux-musl-
-ARM32 = arm-linux-musleabihf-
-ARM64 = aarch64-linux-musl-
+CC=$(PREFIX)clang
+CXX=$(PREFIX)clang++
+LLC=$(PREFIX)llc
+DUMP=$(GNUPREFIX)-objdump
+SPIKE=LD_LIBRARY_PATH=$(SPIKEPREFIX) $(SPIKEPREFIX)spike
 
-PROGRAMS = aes bigint dhrystone miniz norx primes qsort sha512
+SYSROOT=/home/melse/Documents/build_clang/install_multilib/sysroot 
+GCCTOOLCHAIN=/home/melse/Documents/build_clang/install_multilib
 
-RV32_PROGS = $(addprefix bin/riscv32/, $(PROGRAMS))
-RV64_PROGS = $(addprefix bin/riscv64/, $(PROGRAMS))
-I386_PROGS = $(addprefix bin/i386/, $(PROGRAMS))
-X86_64_PROGS = $(addprefix bin/x86_64/, $(PROGRAMS))
-ARM32_PROGS = $(addprefix bin/arm/, $(PROGRAMS))
-ARM64_PROGS = $(addprefix bin/aarch64/, $(PROGRAMS))
+SMALLFLAGS=-DBENCH_SMALL
 
-ALL_PROGS = $(RV32_PROGS) $(RV64_PROGS) $(I386_PROGS) $(X86_64_PROGS) $(ARM32_PROGS) $(ARM64_PROGS)
-O3_PROGS = $(addsuffix .O3, $(ALL_PROGS)) $(addsuffix .O3.stripped, $(ALL_PROGS))
-O2_PROGS = $(addsuffix .O2, $(ALL_PROGS)) $(addsuffix .O2.stripped, $(ALL_PROGS))
-OS_PROGS = $(addsuffix .Os, $(ALL_PROGS)) $(addsuffix .Os.stripped, $(ALL_PROGS))
+CFLAGS=-O3 -emit-llvm -S --sysroot=$(SYSROOT) --target=$(GNUPREFIX)-gnu --gcc-toolchain=$(GCCTOOLCHAIN) $(SMALLFLAGS) -static -g
+ASMFLAGS=--sysroot=$(SYSROOT) --target=$(GNUPREFIX)-gnu --gcc-toolchain=$(GCCTOOLCHAIN) -static 
+LDFLAGS=-lstdc++ -latomic -lm -Wl,-Ttext-segment,0x10000
 
-all: $(O3_PROGS) $(O2_PROGS) $(OS_PROGS) | npm
+LLCFLAGS=-enable-misched=true -riscv-macro-fusion=true -misched-fusion=true -misched-postra=true -enable-post-misched=true
 
-npm: ; npm install
+PROGRAMS=aes bigint dhrystone miniz norx primes qsort sha512
 
-clean: ; rm -fr bin
+BINARIES=$(addsuffix .O3, $(PROGRAMS)) $(addsuffix .O3.fuse, $(PROGRAMS))
 
-bin/riscv32/%.O3: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV32)gcc $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/riscv32/%.O3: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV32)g++ $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/riscv32/%.O3.stripped: bin/riscv32/%.O3
-	@echo STRIP $@ ; $(RV32)strip --strip-all $< -o $@
-bin/riscv32/%.O2: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV32)gcc $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/riscv32/%.O2: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV32)g++ $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/riscv32/%.O2.stripped: bin/riscv32/%.O2
-	@echo STRIP $@ ; $(RV32)strip --strip-all $< -o $@
-bin/riscv32/%.Os: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV32)gcc $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/riscv32/%.Os: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV32)g++ $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/riscv32/%.Os.stripped: bin/riscv32/%.Os
-	@echo STRIP $@ ; $(RV32)strip --strip-all $< -o $@
+DUMPS=$(addprefix dumps/,$(addsuffix .dump, $(BINARIES)))
+ALL_BINS=$(addprefix bin/,$(BINARIES))
+HISTOGRAMS=$(addprefix output/,$(addsuffix .err, $(BINARIES)))
+ANALYSIS=$(addprefix analysis/,$(BINARIES))
+LLS=$(addprefix bin/,$(addsuffix .ll, $(BINARIES)))
+ASMS=$(addprefix bin/,$(addsuffix .s, $(BINARIES)))
 
-bin/riscv64/%.O3: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV64)gcc $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/riscv64/%.O3: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV64)g++ $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/riscv64/%.O3.stripped: bin/riscv64/%.O3
-	@echo STRIP $@ ; $(RV64)strip --strip-all $< -o $@
-bin/riscv64/%.O2: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV64)gcc $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/riscv64/%.O2: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV64)g++ $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/riscv64/%.O2.stripped: bin/riscv64/%.O2
-	@echo STRIP $@ ; $(RV64)strip --strip-all $< -o $@
-bin/riscv64/%.Os: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV64)gcc $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/riscv64/%.Os: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(RV64)g++ $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/riscv64/%.Os.stripped: bin/riscv64/%.Os
-	@echo STRIP $@ ; $(RV64)strip --strip-all $< -o $@
+ANALYSE_ARGS=--percentages $(if $(LIMIT),--limit,)
 
-bin/i386/%.O3: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(I386)gcc $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/i386/%.O3: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(I386)g++ $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/i386/%.O3.stripped: bin/i386/%.O3
-	@echo STRIP $@ ; $(I386)strip --strip-all $< -o $@
-bin/i386/%.O2: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(I386)gcc $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/i386/%.O2: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(I386)g++ $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/i386/%.O2.stripped: bin/i386/%.O2
-	@echo STRIP $@ ; $(I386)strip --strip-all $< -o $@
-bin/i386/%.Os: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(I386)gcc $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/i386/%.Os: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(I386)g++ $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/i386/%.Os.stripped: bin/i386/%.Os
-	@echo STRIP $@ ; $(I386)strip --strip-all $< -o $@
+.PRECIOUS: $(HISTOGRAMS) $(LLS) $(ASMS)
+.PHONY: clean all analyse
 
-bin/x86_64/%.O3: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(X86_64)gcc $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/x86_64/%.O3: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(X86_64)g++ $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/x86_64/%.O3.stripped: bin/x86_64/%.O3
-	@echo STRIP $@ ; $(X86_64)strip --strip-all $< -o $@
-bin/x86_64/%.O2: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(X86_64)gcc $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/x86_64/%.O2: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(X86_64)g++ $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/x86_64/%.O2.stripped: bin/x86_64/%.O2
-	@echo STRIP $@ ; $(X86_64)strip --strip-all $< -o $@
-bin/x86_64/%.Os: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(X86_64)gcc $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/x86_64/%.Os: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(X86_64)g++ $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/x86_64/%.Os.stripped: bin/x86_64/%.Os
-	@echo STRIP $@ ; $(X86_64)strip --strip-all $< -o $@
+all: $(ALL_BINS) $(DUMPS) $(ANALYSIS) 
 
-bin/arm/%.O3: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM32)gcc $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/arm/%.O3: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM32)g++ $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/arm/%.O3.stripped: bin/arm/%.O3
-	@echo STRIP $@ ; $(ARM32)strip --strip-all $< -o $@
-bin/arm/%.O2: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM32)gcc $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/arm/%.O2: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM32)g++ $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/arm/%.O2.stripped: bin/arm/%.O2
-	@echo STRIP $@ ; $(ARM32)strip --strip-all $< -o $@
-bin/arm/%.Os: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM32)gcc $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/arm/%.Os: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM32)g++ $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/arm/%.Os.stripped: bin/arm/%.Os
-	@echo STRIP $@ ; $(ARM32)strip --strip-all $< -o $@
+clean: 
+	@echo RM bin; rm -rf bin dumps
 
-bin/aarch64/%.O3: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM64)gcc $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/aarch64/%.O3: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM64)g++ $(LDFLAGS) -O3 $(CFLAGS) $< -o $@
-bin/aarch64/%.O3.stripped: bin/aarch64/%.O3
-	@echo STRIP $@ ; $(ARM64)strip --strip-all $< -o $@
-bin/aarch64/%.O2: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM64)gcc $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/aarch64/%.O2: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM64)g++ $(LDFLAGS) -O2 $(CFLAGS) $< -o $@
-bin/aarch64/%.O2.stripped: bin/aarch64/%.O2
-	@echo STRIP $@ ; $(ARM64)strip --strip-all $< -o $@
-bin/aarch64/%.Os: src/%.c
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM64)gcc $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/aarch64/%.Os: src/%.cc
-	@echo CC $@ ; mkdir -p $(@D) ; $(ARM64)g++ $(LDFLAGS) -Os $(CFLAGS) $< -o $@
-bin/aarch64/%.Os.stripped: bin/aarch64/%.Os
-	@echo STRIP $@ ; $(ARM64)strip --strip-all $< -o $@
+analyse: $(ANALYSIS)
+
+analysis/%: dumps/%.dump output/%.err
+	@python3 analyse_pair.py $(ANALYSE_ARGS) --compiler=clang --name=$* dumps/$*.dump output/$*.err 
+
+analysis/%.fuse: dumps/%.fuse.dump output/%.fuse.err
+	@python3 analyse_pair.py $(ANALYSE_ARGS) --compiler=clang_mod --name=$* dumps/$*.fuse.dump output/$*.fuse.err 
+
+bin/%.O3: bin/%.O3.s
+	@echo ASM $@
+	@$(CC) $(ASMFLAGS) $< $(LDFLAGS) -o $@ 
+
+bin/%.O3.fuse: bin/%.fuse.s
+	@echo ASM $@
+	$(CC) $(ASMFLAGS) $< $(LDFLAGS) -o $@ 
+
+bin/%.fuse.s: bin/%.ll
+	@echo LLC $@
+	$(LLC) $< $(LLCFLAGS) -o $@
+
+bin/%.O3.s: bin/%.ll
+	@echo LLC $@
+	@$(LLC) $< -o $@
+
+bin/%.ll: src/%.c
+	@echo CC $@
+	@mkdir -p $(@D)
+	@$(CC) $(CFLAGS) $< -o $@ 
+
+bin/%.ll: src/%.cc
+	@echo CXX $@
+	@mkdir -p $(@D)
+	@$(CXX) $(CFLAGS) $< -o $@ 
+
+dumps/%.dump: bin/%
+	@echo DUMP $@
+	@mkdir -p $(@D)
+	@$(DUMP) -d $< > $@  
+
+output/%.err: bin/%
+	@echo RUN $@
+	@mkdir -p $(@D)
+	@$(SPIKE) -g pk $< > output/$*.out 2> $@
+
